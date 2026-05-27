@@ -43,15 +43,27 @@ import com.example.ui.viewmodel.VpnViewModelFactory
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        android.util.Log.i("ShieldVPN", "MainActivity: onCreate started")
+        
+        try {
+            enableEdgeToEdge()
 
-        val database = AppDatabase.getDatabase(this)
-        val repository = VpnRepository(ApiClient.apiService, database.serverDao())
+            val database = AppDatabase.getDatabase(this)
+            val repository = VpnRepository(ApiClient.apiService, database.serverDao())
 
-        setContent {
-            val viewModel: VpnViewModel = viewModel(factory = VpnViewModelFactory(repository))
-            MyApplicationTheme {
-                ShieldVpnApp(viewModel)
+            android.util.Log.i("ShieldVPN", "Dependencies initialized successfully")
+
+            setContent {
+                val viewModel: VpnViewModel = viewModel(factory = VpnViewModelFactory(repository))
+                MyApplicationTheme {
+                    ShieldVpnApp(viewModel)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ShieldVPN", "Critical error in onCreate", e)
+            // Still set empty content or error content so it doesn't crash UI immediately
+            setContent {
+                androidx.compose.material3.Text("A critical error occurred initializing the app. Check logs.")
             }
         }
     }
@@ -145,16 +157,25 @@ fun ShieldVpnApp(viewModel: VpnViewModel) {
     ) { innerPadding ->
         
         LaunchedEffect(isAuthenticated) {
-            if (!isAuthenticated) {
-                navController.navigate(ScreenAuth.route) {
-                    popUpTo(0) { inclusive = true }
-                }
-            } else {
-                if (navController.currentDestination?.route == ScreenAuth.route) {
-                    navController.navigate(ScreenConnect.route) {
-                        popUpTo(ScreenAuth.route) { inclusive = true }
+            try {
+                if (!isAuthenticated) {
+                    navController.navigate(ScreenAuth.route) {
+                        try {
+                            val startId = navController.graph.findStartDestination().id
+                            popUpTo(startId) { inclusive = true }
+                        } catch (e: Exception) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                } else {
+                    if (navController.currentDestination?.route == ScreenAuth.route) {
+                        navController.navigate(ScreenConnect.route) {
+                            popUpTo(ScreenAuth.route) { inclusive = true }
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 

@@ -40,13 +40,18 @@ fun ConnectScreen(
 
     val vpnResultLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val server = selectedServer ?: return@rememberLauncherForActivityResult
-            val intent = Intent(context, WireGuardVpnService::class.java).apply {
-                putExtra("SERVER_IP", server.ip_address)
-                putExtra("SERVER_WG_KEY", server.wg_public_key)
+            try {
+                val server = selectedServer ?: return@rememberLauncherForActivityResult
+                val intent = Intent(context, WireGuardVpnService::class.java).apply {
+                    putExtra("SERVER_IP", server.ip_address)
+                    putExtra("SERVER_WG_KEY", server.wg_public_key)
+                }
+                context.startService(intent)
+                viewModel.setConnectedState()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                viewModel.disconnect()
             }
-            context.startService(intent)
-            viewModel.setConnectedState()
         } else {
             viewModel.disconnect()
         }
@@ -59,23 +64,32 @@ fun ConnectScreen(
                 viewModel.toggleConnection() // will set error
             } else {
                 viewModel.connect(server) // Sets state to CONNECTING
-                val intent = VpnService.prepare(context)
-                if (intent != null) {
-                    vpnResultLauncher.launch(intent)
-                } else {
-                    // Already have permission
-                    val serviceIntent = Intent(context, WireGuardVpnService::class.java).apply {
-                        putExtra("SERVER_IP", server.ip_address)
-                        putExtra("SERVER_WG_KEY", server.wg_public_key)
+                try {
+                    val intent = VpnService.prepare(context)
+                    if (intent != null) {
+                        vpnResultLauncher.launch(intent)
+                    } else {
+                        // Already have permission
+                        val serviceIntent = Intent(context, WireGuardVpnService::class.java).apply {
+                            putExtra("SERVER_IP", server.ip_address)
+                            putExtra("SERVER_WG_KEY", server.wg_public_key)
+                        }
+                        context.startService(serviceIntent)
+                        viewModel.setConnectedState()
                     }
-                    context.startService(serviceIntent)
-                    viewModel.setConnectedState()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    viewModel.disconnect()
                 }
             }
         } else {
             viewModel.toggleConnection() // disconnect
-            val stopIntent = Intent(context, WireGuardVpnService::class.java)
-            context.stopService(stopIntent)
+            try {
+                val stopIntent = Intent(context, WireGuardVpnService::class.java)
+                context.stopService(stopIntent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

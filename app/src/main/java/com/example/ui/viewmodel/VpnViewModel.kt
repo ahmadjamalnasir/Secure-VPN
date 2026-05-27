@@ -48,51 +48,64 @@ class VpnViewModel(private val repository: VpnRepository) : ViewModel() {
     val authError: StateFlow<String?> = _authError.asStateFlow()
 
     fun login(email: String, pass: String) {
+        android.util.Log.i("ShieldVPN", "Auth Flow: Starting login for $email")
         viewModelScope.launch {
             _authError.value = null
             val result = repository.login(email, pass)
             result.onSuccess { res ->
+                android.util.Log.i("ShieldVPN", "Auth Flow: Login successful, premium=${res.is_premium}")
                 _isAuthenticated.value = true
                 _isUserPremium.value = res.is_premium
                 refreshServers()
             }.onFailure {
+                android.util.Log.e("ShieldVPN", "Auth Flow: Login failed", it)
                 _authError.value = "Login failed: Invalid credentials or offline"
             }
         }
     }
 
     fun signup(email: String, pass: String) {
+        android.util.Log.i("ShieldVPN", "Auth Flow: Starting signup for $email")
         viewModelScope.launch {
             _authError.value = null
             val result = repository.signup(email, pass)
             result.onSuccess { res ->
+                android.util.Log.i("ShieldVPN", "Auth Flow: Signup successful")
                 _isAuthenticated.value = true
                 _isUserPremium.value = res.is_premium
                 refreshServers()
             }.onFailure {
+                android.util.Log.e("ShieldVPN", "Auth Flow: Signup failed", it)
                 _authError.value = "Sign up failed: Email may be in use."
             }
         }
     }
 
     fun continueAsGuest() {
+        android.util.Log.i("ShieldVPN", "Auth Flow: Continuing as Free User")
         _isAuthenticated.value = true
         _isUserPremium.value = false
         refreshServers()
     }
     
     fun logout() {
+        android.util.Log.i("ShieldVPN", "Auth Flow: Logging out")
         _isAuthenticated.value = false
         _isUserPremium.value = false
         disconnect()
     }
 
     fun refreshServers() {
+        android.util.Log.i("ShieldVPN", "Backend Connectivity: Refreshing servers via repository")
         viewModelScope.launch {
             _isRefreshing.value = true
             _errorMessage.value = null
             val result = repository.refreshServers()
+            result.onSuccess {
+                android.util.Log.i("ShieldVPN", "Backend Connectivity: Successfully fetched servers")
+            }
             result.onFailure {
+                android.util.Log.e("ShieldVPN", "Backend Connectivity: Failed mapping or fetching servers", it)
                 _errorMessage.value = "Backend unavailable. Please check your network."
                 if (_selectedServer.value != null && servers.value.isEmpty()) {
                      _selectedServer.value = null

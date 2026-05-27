@@ -16,10 +16,16 @@ class WireGuardVpnService : VpnService() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val serverIp = intent?.getStringExtra("SERVER_IP") ?: return START_NOT_STICKY
-        val serverWgKey = intent?.getStringExtra("SERVER_WG_KEY") ?: return START_NOT_STICKY
+        val serverIp = intent?.getStringExtra("SERVER_IP")
+        val serverWgKey = intent?.getStringExtra("SERVER_WG_KEY")
 
-        // We simulate actual WG builder for app compliance and VPN entitlements handling
+        if (serverIp == null || serverWgKey == null) {
+            Log.e("WireGuardVpnService", "Missing configuration, stopping service")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        Log.i("WireGuardVpnService", "Starting VPN service for IP: $serverIp")
         setupVpn(serverIp, serverWgKey)
         return START_STICKY
     }
@@ -30,16 +36,29 @@ class WireGuardVpnService : VpnService() {
                 vpnInterface?.close()
                 vpnInterface = null
             } catch (e: Exception) {
-                // Ignore
+                Log.e("WireGuardVpnService", "Error closing existing VPN interface", e)
             }
         }
 
         try {
             val builder = Builder()
-                .addAddress("10.0.0.2", 24)
-                .addDnsServer("1.1.1.1")
-                .addRoute("0.0.0.0", 0)
-                .setSession("Shield VPN")
+            
+            // Try to add address safely
+            try {
+                builder.addAddress("10.0.0.2", 24)
+            } catch (e: IllegalArgumentException) {
+                Log.e("WireGuardVpnService", "Invalid address format", e)
+            }
+            
+            builder.addDnsServer("1.1.1.1")
+            
+            try {
+                builder.addRoute("0.0.0.0", 0)
+            } catch (e: IllegalArgumentException) {
+                Log.e("WireGuardVpnService", "Invalid route format", e)
+            }
+                
+            builder.setSession("Shield VPN")
 
             vpnInterface = builder.establish()
 
@@ -52,7 +71,8 @@ class WireGuardVpnService : VpnService() {
                 }
             }
         } catch (e: Exception) {
-            Log.e("WireGuardVpnService", "Error setting up VPN: ${e.message}")
+            Log.e("WireGuardVpnService", "Error setting up VPN: ${e.message}", e)
+            stopSelf()
         }
     }
 
