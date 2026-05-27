@@ -100,13 +100,15 @@ fun ShieldVpnApp(viewModel: VpnViewModel) {
                         label = { Text("Home") },
                         selected = currentDestination?.hierarchy?.any { it.route == ScreenConnect.route } == true,
                         onClick = {
-                            navController.navigate(ScreenConnect.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                            try {
+                                navController.navigate(ScreenConnect.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                            } catch (e: Exception) { e.printStackTrace() }
                         }
                     )
                     NavigationBarItem(
@@ -121,13 +123,15 @@ fun ShieldVpnApp(viewModel: VpnViewModel) {
                         label = { Text("Servers") },
                         selected = currentDestination?.hierarchy?.any { it.route == ScreenServers.route } == true,
                         onClick = {
-                            navController.navigate(ScreenServers.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                            try {
+                                navController.navigate(ScreenServers.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                            } catch (e: Exception) { e.printStackTrace() }
                         }
                     )
                     NavigationBarItem(
@@ -142,13 +146,15 @@ fun ShieldVpnApp(viewModel: VpnViewModel) {
                         label = { Text("Premium") },
                         selected = currentDestination?.hierarchy?.any { it.route == ScreenSubscription.route } == true,
                         onClick = {
-                            navController.navigate(ScreenSubscription.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                            try {
+                                navController.navigate(ScreenSubscription.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                            } catch (e: Exception) { e.printStackTrace() }
                         }
                     )
                 }

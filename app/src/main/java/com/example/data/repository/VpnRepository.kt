@@ -25,11 +25,15 @@ class VpnRepository(
             val remoteServers = apiService.getServers()
             
             // For demo purposes, we will also fetch the WG demo server and add it to our list
-            val wgDemo = apiService.getWgDemoServer()
-            
             val allServers = remoteServers.toMutableList()
-            if (!allServers.any { it.id == wgDemo.id }) {
-                allServers.add(wgDemo)
+            try {
+                val wgDemo = apiService.getWgDemoServer()
+                if (!allServers.any { it.id == wgDemo.id }) {
+                    allServers.add(wgDemo)
+                }
+            } catch (e: Exception) {
+                // Ignore missing demo server
+                e.printStackTrace()
             }
 
             serverDao.insertServers(allServers.map { it.toEntityModel() })
