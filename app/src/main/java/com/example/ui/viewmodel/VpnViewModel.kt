@@ -61,6 +61,20 @@ class VpnViewModel(private val repository: VpnRepository) : ViewModel() {
         }
     }
 
+    fun signup(email: String, pass: String) {
+        viewModelScope.launch {
+            _authError.value = null
+            val result = repository.signup(email, pass)
+            result.onSuccess { res ->
+                _isAuthenticated.value = true
+                _isUserPremium.value = res.is_premium
+                refreshServers()
+            }.onFailure {
+                _authError.value = "Sign up failed: Email may be in use."
+            }
+        }
+    }
+
     fun continueAsGuest() {
         _isAuthenticated.value = true
         _isUserPremium.value = false
@@ -100,47 +114,40 @@ class VpnViewModel(private val repository: VpnRepository) : ViewModel() {
     }
 
     fun toggleConnection() {
-        when (_connectionState.value) {
-            ConnectionState.DISCONNECTED -> connect()
-            ConnectionState.CONNECTING -> disconnect()
-            ConnectionState.CONNECTED -> disconnect()
-            ConnectionState.ERROR -> connect()
-        }
-    }
-
-    private fun connect() {
         val server = _selectedServer.value
         if (server == null) {
             _errorMessage.value = "Please select a server first."
             return
         }
+
+        when (_connectionState.value) {
+            ConnectionState.DISCONNECTED -> connect(server)
+            ConnectionState.CONNECTING -> disconnect()
+            ConnectionState.CONNECTED -> disconnect()
+            ConnectionState.ERROR -> connect(server)
+        }
+    }
+
+    fun connect(server: VpnServer) {
         if (server.status != "online") {
             _errorMessage.value = "Server is currently offline. Please choose another."
             return
         }
 
-        viewModelScope.launch {
-            _connectionState.value = ConnectionState.CONNECTING
-            _errorMessage.value = null
-            
-            // Simulating real VPN handshake
-            delay(1500)
-            
-            // NOTE: In a real app, VpnService intent is generated and launched via Context. 
-            // VpnService.prepare(context) followed by context.startService()
-            // We simulate successful connection from service here:
-            
-            if (server.wg_endpoint == null && server.wg_public_key == null) {
-                // If it's a real server without config, it might fail in reality. But this is simulating.
-                _connectionState.value = ConnectionState.CONNECTED
-            } else {
-                _connectionState.value = ConnectionState.CONNECTED
-            }
-        }
+        _connectionState.value = ConnectionState.CONNECTING
+        _errorMessage.value = null
+        
+        // The actual VPN Service Intent will be started from the UI layer (ConnectScreen)
+        // because it requires Activity context and VpnService.prepare() permissions.
+    }
+    
+    fun setConnectedState() {
+        _connectionState.value = ConnectionState.CONNECTED
     }
 
-    private fun disconnect() {
+    fun disconnect() {
         _connectionState.value = ConnectionState.DISCONNECTED
+        // UI layer will stop the service
     }
 
     fun clearError() {

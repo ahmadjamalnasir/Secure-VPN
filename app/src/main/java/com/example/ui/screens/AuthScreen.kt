@@ -22,6 +22,8 @@ fun AuthScreen(
     val isAuthenticated by viewModel.isAuthenticated.collectAsStateWithLifecycle()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    
+    var isSignUpMode by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -36,9 +38,10 @@ fun AuthScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Log in for Premium access, or continue as a Free user.",
+            text = "Log in or sign up for Premium access,\nor continue as a Free user.",
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -62,14 +65,14 @@ fun AuthScreen(
         OutlinedTextField(
             value = email,
             onValueChange = { email = it; viewModel.clearAuthError() },
-            label = { Text("Email (admin)") },
+            label = { Text("Email") },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
             value = password,
             onValueChange = { password = it; viewModel.clearAuthError() },
-            label = { Text("Password (admin)") },
+            label = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
@@ -77,13 +80,28 @@ fun AuthScreen(
         Spacer(modifier = Modifier.height(24.dp))
         
         Button(
-            onClick = { viewModel.login(email, password) },
+            onClick = { 
+                if (isSignUpMode) {
+                    viewModel.signup(email, password)
+                } else {
+                    viewModel.login(email, password)
+                }
+            },
             modifier = Modifier.fillMaxWidth().height(50.dp)
         ) {
-            Text("Log In")
+            Text(if (isSignUpMode) "Sign Up" else "Log In")
         }
         
         Spacer(modifier = Modifier.height(16.dp))
+        
+        TextButton(
+            onClick = { isSignUpMode = !isSignUpMode },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (isSignUpMode) "Already have an account? Log In" else "Don't have an account? Sign Up")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
         
         TextButton(
             onClick = { viewModel.continueAsGuest() },

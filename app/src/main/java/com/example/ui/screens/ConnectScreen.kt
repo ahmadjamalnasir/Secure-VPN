@@ -19,6 +19,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.viewmodel.ConnectionState
 import com.example.ui.viewmodel.VpnViewModel
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import android.net.VpnService
+import android.content.Intent
+import android.app.Activity
+import com.example.service.WireGuardVpnService
+
 @Composable
 fun ConnectScreen(
     viewModel: VpnViewModel,
@@ -28,6 +36,48 @@ fun ConnectScreen(
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val selectedServer by viewModel.selectedServer.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    val vpnResultLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val server = selectedServer ?: return@rememberLauncherForActivityResult
+            val intent = Intent(context, WireGuardVpnService::class.java).apply {
+                putExtra("SERVER_IP", server.ip_address)
+                putExtra("SERVER_WG_KEY", server.wg_public_key)
+            }
+            context.startService(intent)
+            viewModel.setConnectedState()
+        } else {
+            viewModel.disconnect()
+        }
+    }
+
+    val toggleVpnAndRequestPermission = {
+        if (connectionState == ConnectionState.DISCONNECTED || connectionState == ConnectionState.ERROR) {
+            val server = selectedServer
+            if (server == null) {
+                viewModel.toggleConnection() // will set error
+            } else {
+                viewModel.connect(server) // Sets state to CONNECTING
+                val intent = VpnService.prepare(context)
+                if (intent != null) {
+                    vpnResultLauncher.launch(intent)
+                } else {
+                    // Already have permission
+                    val serviceIntent = Intent(context, WireGuardVpnService::class.java).apply {
+                        putExtra("SERVER_IP", server.ip_address)
+                        putExtra("SERVER_WG_KEY", server.wg_public_key)
+                    }
+                    context.startService(serviceIntent)
+                    viewModel.setConnectedState()
+                }
+            }
+        } else {
+            viewModel.toggleConnection() // disconnect
+            val stopIntent = Intent(context, WireGuardVpnService::class.java)
+            context.stopService(stopIntent)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -82,7 +132,7 @@ fun ConnectScreen(
                 .size(200.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surface)
-                .clickable { viewModel.toggleConnection() },
+                .clickable { toggleVpnAndRequestPermission() },
             contentAlignment = Alignment.Center
         ) {
             // Nested rings for the design

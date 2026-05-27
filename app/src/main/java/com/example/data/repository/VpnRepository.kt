@@ -53,4 +53,13 @@ class VpnRepository(
             Result.failure(e)
         }
     }
+
+    suspend fun signup(email: String, pass: String): Result<LoginResponse> {
+        return try {
+            val res = apiService.signup(LoginRequest(email, pass))
+            Result.success(res)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
