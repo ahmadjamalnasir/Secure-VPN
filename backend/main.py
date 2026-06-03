@@ -186,12 +186,12 @@ def list_servers(db: Session = Depends(get_db)):
     """Returns the list of available VPN servers."""
     return db.query(models.DbServer).all()
 
-@app.get("/servers/wg-demo", response_model=Server)
-def get_wg_demo(db: Session = Depends(get_db)):
-    """Returns the actual WireGuard demo server configs."""
-    server = db.query(models.DbServer).filter(models.DbServer.id == "wg-demo-1").first()
+@app.get("/servers/{server_id}", response_model=Server)
+def get_server(server_id: str, db: Session = Depends(get_db)):
+    """Returns the configs for a specific VPN server."""
+    server = db.query(models.DbServer).filter(models.DbServer.id == server_id).first()
     if not server:
-        raise HTTPException(status_code=404, detail="Demo server not found")
+        raise HTTPException(status_code=404, detail="Server not found")
     return server
 
 @app.get("/users/me", response_model=User)

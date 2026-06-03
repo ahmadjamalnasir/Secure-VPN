@@ -9,8 +9,8 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
-    // 10.0.2.2 is standard for Android Emulator to host's localhost (FastAPI port 8000)
-    private const val BASE_URL = "http://10.0.2.2:8000"
+    // Using ngrok URL for remote access to local development server
+    private const val BASE_URL = "https://catwalk-series-canola.ngrok-free.dev"
 
     var userToken: String? = null
 

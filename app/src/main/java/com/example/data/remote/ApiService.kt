@@ -12,8 +12,8 @@ interface ApiService {
     @GET("/servers")
     suspend fun getServers(): List<VpnServer>
 
-    @GET("/servers/wg-demo")
-    suspend fun getWgDemoServer(): VpnServer
+    @GET("/servers/{serverId}")
+    suspend fun getServer(@retrofit2.http.Path("serverId") serverId: String): VpnServer
 
     @GET("/users/me")
     suspend fun getCurrentUser(): User

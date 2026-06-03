@@ -335,6 +335,11 @@ class VpnViewModel(private val repository: VpnRepository) : ViewModel() {
         _errorMessage.value = null
     }
     
+    fun setErrorMessage(message: String) {
+        _errorMessage.value = message
+        _connectionState.value = ConnectionState.ERROR
+    }
+    
     fun clearAuthError() {
         _authError.value = null
     }

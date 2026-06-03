@@ -49,6 +49,9 @@ import com.example.ui.viewmodel.VpnViewModel
 import com.example.ui.viewmodel.VpnViewModelFactory
 
 class MainActivity : ComponentActivity() {
+    private var vpnErrorReceiver: android.content.BroadcastReceiver? = null
+    private var vpnViewModel: VpnViewModel? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         android.util.Log.i("ShieldVPN", "MainActivity: onCreate started")
@@ -60,9 +63,22 @@ class MainActivity : ComponentActivity() {
             val repository = VpnRepository(ApiClient.apiService, database.serverDao())
 
             android.util.Log.i("ShieldVPN", "Dependencies initialized successfully")
+            
+            vpnErrorReceiver = object : android.content.BroadcastReceiver() {
+                override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+                    val errorMsg = intent?.getStringExtra("message") ?: "VPN Connection Error"
+                    vpnViewModel?.setErrorMessage(errorMsg)
+                }
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(vpnErrorReceiver, android.content.IntentFilter("com.example.vpn.ERROR"), android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(vpnErrorReceiver, android.content.IntentFilter("com.example.vpn.ERROR"))
+            }
 
             setContent {
                 val viewModel: VpnViewModel = viewModel(factory = VpnViewModelFactory(repository))
+                vpnViewModel = viewModel
                 MyApplicationTheme {
                     ShieldVpnApp(viewModel)
                 }
@@ -73,6 +89,11 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.material3.Text("A critical error occurred initializing the app. Check logs.")
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        vpnErrorReceiver?.let { unregisterReceiver(it) }
     }
 }
 

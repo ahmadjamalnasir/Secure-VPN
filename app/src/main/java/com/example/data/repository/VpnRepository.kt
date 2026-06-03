@@ -27,7 +27,7 @@ class VpnRepository(
             // For demo purposes, we will also fetch the WG demo server and add it to our list
             val allServers = remoteServers.toMutableList()
             try {
-                val wgDemo = apiService.getWgDemoServer()
+                val wgDemo = apiService.getServer("wg-demo-1")
                 if (!allServers.any { it.id == wgDemo.id }) {
                     allServers.add(wgDemo)
                 }

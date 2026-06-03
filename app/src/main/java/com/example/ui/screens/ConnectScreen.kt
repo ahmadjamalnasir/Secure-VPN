@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +56,14 @@ fun ConnectScreen(
     val totalDownloadedBytes by viewModel.totalDownloadedBytes.collectAsStateWithLifecycle()
     val totalUploadedBytes by viewModel.totalUploadedBytes.collectAsStateWithLifecycle()
     val isBackendOffline by viewModel.isBackendOffline.collectAsStateWithLifecycle()
+    
+    LaunchedEffect(errorMessage) {
+        if (errorMessage != null) {
+            kotlinx.coroutines.delay(4000)
+            viewModel.clearError()
+        }
+    }
+    
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 

@@ -21,9 +21,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.net.InetAddress
 
-class WireGuardVpnService : VpnService() {
+class WireGuardVpnService : android.app.Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
     private var goBackendInstance: GoBackend? = null
+
+    override fun onBind(intent: Intent?): android.os.IBinder? = null
 
     private val shieldTunnel = object : Tunnel {
         override fun getName(): String = "wg-demo-1"
@@ -51,27 +53,30 @@ class WireGuardVpnService : VpnService() {
 
                 if (wgPublicKeyBase64.isNullOrEmpty() || wgEndpointString.isNullOrEmpty()) {
                     try {
-                        Log.i("WireGuardVpnService", "Fetching live server config via getWgDemoServer")
-                        val wgDemo = ApiClient.apiService.getWgDemoServer()
+                        val activeServerId = intent?.getStringExtra("SERVER_ID") ?: "wg-demo-1"
+                        Log.i("WireGuardVpnService", "Fetching live server config via getServer for $activeServerId")
+                        val wgServer = ApiClient.apiService.getServer(activeServerId)
                         if (wgPublicKeyBase64.isNullOrEmpty()) {
-                            wgPublicKeyBase64 = wgDemo.wg_public_key
+                            wgPublicKeyBase64 = wgServer.wg_public_key
                         }
                         if (wgEndpointString.isNullOrEmpty()) {
-                            wgEndpointString = wgDemo.wg_endpoint
+                            wgEndpointString = wgServer.wg_endpoint
                         }
-                        dnsIp = wgDemo.dns ?: dnsIp
-                        keepaliveSecs = wgDemo.keepalive ?: keepaliveSecs
+                        dnsIp = wgServer.dns ?: dnsIp
+                        keepaliveSecs = wgServer.keepalive ?: keepaliveSecs
                     } catch (e: Exception) {
                         Log.w("WireGuardVpnService", "Failed fetching live server config from host: ${e.message}", e)
                     }
                 }
 
-                // Double check defaults
-                if (wgPublicKeyBase64.isNullOrEmpty()) {
-                    wgPublicKeyBase64 = "z1d6XOUyV2R0sEz211W5JpbFfsDc9wi7VCwvSgon+CA="
-                }
-                if (wgEndpointString.isNullOrEmpty()) {
-                    wgEndpointString = "us1-wg.ssl-tun.xyz:2600"
+                // Check if config is fully loaded
+                if (wgPublicKeyBase64.isNullOrEmpty() || wgEndpointString.isNullOrEmpty()) {
+                    Log.e("WireGuardVpnService", "Missing WireGuard configuration.")
+                    val errorIntent = android.content.Intent("com.example.vpn.ERROR")
+                    errorIntent.putExtra("message", "Unable to retrieve WireGuard configuration for this server.")
+                    sendBroadcast(errorIntent)
+                    stopSelf()
+                    return@launch
                 }
 
                 // 2. Load/generate client keypair securely using EncryptedSharedPreferences
@@ -108,6 +113,9 @@ class WireGuardVpnService : VpnService() {
                 
             } catch (e: Exception) {
                 Log.e("WireGuardVpnService", "Failed to connect tunnel: ${e.message}", e)
+                val errorIntent = android.content.Intent("com.example.vpn.ERROR")
+                errorIntent.putExtra("message", "Connection failed: ${e.message ?: "Unknown error"}")
+                sendBroadcast(errorIntent)
                 stopSelf()
             }
         }
