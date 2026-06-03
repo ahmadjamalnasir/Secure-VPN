@@ -1,5 +1,5 @@
 {
-  "name": "Shield VPN",
+  "name": "Prime VPN",
   "description": "Production-ready consumer VPN application with subscription tiers and secure server routing.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

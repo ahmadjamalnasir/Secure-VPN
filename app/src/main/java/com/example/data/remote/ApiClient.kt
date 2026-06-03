@@ -12,11 +12,20 @@ object ApiClient {
     // 10.0.2.2 is standard for Android Emulator to host's localhost (FastAPI port 8000)
     private const val BASE_URL = "http://10.0.2.2:8000"
 
+    var userToken: String? = null
+
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
 
     private val client = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val requestBuilder = chain.request().newBuilder()
+            userToken?.let { token ->
+                requestBuilder.addHeader("Authorization", "Bearer $token")
+            }
+            chain.proceed(requestBuilder.build())
+        }
         .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY })
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)

@@ -14,7 +14,9 @@ data class ServerEntity(
     val status: String,
     val load_percent: Int,
     val wg_public_key: String? = null,
-    val wg_endpoint: String? = null
+    val wg_endpoint: String? = null,
+    val dns: String? = "8.8.8.8",
+    val keepalive: Int? = 25
 )
 
 // Extension function to map Entity to Domain Model
@@ -27,7 +29,9 @@ fun ServerEntity.toDomainModel() = VpnServer(
     status = status,
     load_percent = load_percent,
     wg_public_key = wg_public_key,
-    wg_endpoint = wg_endpoint
+    wg_endpoint = wg_endpoint,
+    dns = dns,
+    keepalive = keepalive
 )
 
 fun VpnServer.toEntityModel() = ServerEntity(
@@ -39,5 +43,7 @@ fun VpnServer.toEntityModel() = ServerEntity(
     status = status,
     load_percent = load_percent,
     wg_public_key = wg_public_key,
-    wg_endpoint = wg_endpoint
+    wg_endpoint = wg_endpoint,
+    dns = dns,
+    keepalive = keepalive
 )

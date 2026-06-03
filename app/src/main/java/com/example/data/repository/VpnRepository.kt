@@ -38,13 +38,8 @@ class VpnRepository(
 
             serverDao.insertServers(allServers.map { it.toEntityModel() })
             Result.success(Unit)
-        } catch (e: IOException) {
-            // Network error
-            Result.failure(e)
-        } catch (e: HttpException) {
-            // API error
-            Result.failure(e)
         } catch (e: Exception) {
+            android.util.Log.e("VpnRepository", "Backend connectivity failed", e)
             Result.failure(e)
         }
     }
@@ -52,6 +47,7 @@ class VpnRepository(
     suspend fun login(email: String, pass: String): Result<LoginResponse> {
         return try {
             val res = apiService.login(LoginRequest(email, pass))
+            com.example.data.remote.ApiClient.userToken = res.access_token
             Result.success(res)
         } catch (e: Exception) {
             Result.failure(e)
@@ -61,6 +57,7 @@ class VpnRepository(
     suspend fun signup(email: String, pass: String): Result<LoginResponse> {
         return try {
             val res = apiService.signup(LoginRequest(email, pass))
+            com.example.data.remote.ApiClient.userToken = res.access_token
             Result.success(res)
         } catch (e: Exception) {
             Result.failure(e)

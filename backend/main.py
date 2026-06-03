@@ -76,6 +76,8 @@ class Server(BaseModel):
     load_percent: int
     wg_public_key: Optional[str] = None
     wg_endpoint: Optional[str] = None
+    dns: Optional[str] = "8.8.8.8"
+    keepalive: Optional[int] = 25
     
     class Config:
         from_attributes = True
@@ -119,22 +121,27 @@ def setup_default_data():
             )
             db.add(new_admin)
             
-    # 2. Add WireGuard demo server if missing
+    # 2. Add or update WireGuard demo server
     wg_id = "wg-demo-1"
     existing_wg = db.query(models.DbServer).filter(models.DbServer.id == wg_id).first()
-    if not existing_wg:
-        wg_server = models.DbServer(
-            id=wg_id,
-            country="Germany",
-            city="Frankfurt",
-            ip_address="198.51.100.1",
-            is_premium=True,
-            status="online",
-            load_percent=15,
-            wg_public_key="xTIBA5rboUvnH4htodjb6e69ziQtiZOVmF2LgZxwB2o=",
-            wg_endpoint="198.51.100.1:51820"
-        )
-        db.add(wg_server)
+    if existing_wg:
+        db.delete(existing_wg)
+        db.commit()
+    
+    wg_server = models.DbServer(
+        id=wg_id,
+        country="United States",
+        city="Demo",
+        ip_address="us1-wg.ssl-tun.xyz",
+        is_premium=False,
+        status="online",
+        load_percent=0,
+        wg_public_key="z1d6XOUyV2R0sEz211W5JpbFfsDc9wi7VCwvSgon+CA=",
+        wg_endpoint="us1-wg.ssl-tun.xyz:2600",
+        dns="8.8.8.8",
+        keepalive=25
+    )
+    db.add(wg_server)
         
     db.commit()
     db.close()

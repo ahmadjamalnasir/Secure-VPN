@@ -12,7 +12,9 @@ data class VpnServer(
     val status: String,
     val load_percent: Int,
     val wg_public_key: String? = null,
-    val wg_endpoint: String? = null
+    val wg_endpoint: String? = null,
+    val dns: String? = "8.8.8.8",
+    val keepalive: Int? = 25
 )
 
 @JsonClass(generateAdapter = true)

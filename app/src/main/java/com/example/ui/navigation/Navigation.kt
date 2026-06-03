@@ -1,5 +1,9 @@
 package com.example.ui.navigation
 
+object ScreenSplash {
+    const val route = "splash"
+}
+
 object ScreenAuth {
     const val route = "auth"
 }
@@ -15,3 +19,12 @@ object ScreenServers {
 object ScreenSubscription {
     const val route = "subscription"
 }
+
+object ScreenSettings {
+    const val route = "settings"
+}
+
+object ScreenAccount {
+    const val route = "account"
+}
+

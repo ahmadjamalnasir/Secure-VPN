@@ -22,3 +22,5 @@ class DbServer(Base):
     load_percent = Column(Integer, default=0)
     wg_public_key = Column(String, nullable=True)
     wg_endpoint = Column(String, nullable=True)
+    dns = Column(String, default="8.8.8.8", nullable=True)
+    keepalive = Column(Integer, default=25, nullable=True)
