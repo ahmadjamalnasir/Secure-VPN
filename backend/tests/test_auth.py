@@ -100,3 +100,43 @@ def test_token_signed_with_another_key_is_rejected(client, make_user):
     )
     resp = client.get("/users/me", headers={"Authorization": f"Bearer {forged}"})
     assert resp.status_code == 401
+
+
+def test_alg_none_token_is_rejected(client, make_user):
+    """The classic JWT bypass: strip the signature and claim alg=none."""
+    import base64
+    import json
+
+    def b64(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+    make_user(email="victim@test.local")
+    header = b64(json.dumps({"alg": "none", "typ": "JWT"}).encode())
+    payload = b64(json.dumps({"sub": "victim@test.local", "exp": 9999999999}).encode())
+    forged = f"{header}.{payload}."
+
+    resp = client.get("/users/me", headers={"Authorization": f"Bearer {forged}"})
+    assert resp.status_code == 401
+
+
+def test_token_signed_with_a_different_algorithm_is_rejected(client, make_user):
+    """Guards the algorithm-confusion class behind CVE-2024-33663.
+
+    The same secret signed under HS512 must not be accepted where HS256 is the
+    configured algorithm.
+    """
+    from datetime import datetime, timedelta
+
+    from jose import jwt
+
+    from backend.security import SECRET_KEY
+
+    make_user(email="victim@test.local")
+    forged = jwt.encode(
+        {"sub": "victim@test.local",
+         "exp": datetime.utcnow() + timedelta(minutes=30)},
+        SECRET_KEY,
+        algorithm="HS512",
+    )
+    resp = client.get("/users/me", headers={"Authorization": f"Bearer {forged}"})
+    assert resp.status_code == 401

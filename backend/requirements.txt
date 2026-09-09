@@ -5,7 +5,7 @@ pydantic-settings==2.2.1
 SQLAlchemy==2.0.25
 alembic==1.13.1
 psycopg2-binary==2.9.9
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 # passlib 1.7.4 reads bcrypt.__about__, which bcrypt removed in 4.1. Pin below
 # that until passlib ships a release that handles the newer layout.
