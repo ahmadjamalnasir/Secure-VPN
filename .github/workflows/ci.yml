@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend · lint & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements-dev.txt
+
+      - name: Lint
+        run: ruff check backend/
+
+      - name: Test
+        run: pytest
+
+  dashboard:
+    name: Dashboard · typecheck & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin-dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: admin-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # react-scripts 5.0.1 (Create React App) is deprecated and drags in a
+      # large tree of build-time advisories. None are critical today, so the
+      # gate is set there. Tighten to `high` once the Vite migration in
+      # ROADMAP.md Step 5 lands.
+      - name: Audit dependencies
+        run: npm audit --audit-level=critical
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Scans the working tree rather than history. Secrets already committed
+      # before the Step 1 rotation are known and deliberately not rewritten
+      # (see ROADMAP.md); this gate exists to stop NEW ones landing.
+      - name: Run gitleaks
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            zricethezav/gitleaks:latest \
+            detect --source /repo --no-git \
+            --config /repo/.gitleaks.toml \
+            --redact --verbose
+
+  images:
+    name: Container images · build & scan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+          - name: admin-dashboard
+            context: ./admin-dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t shieldvpn-${{ matrix.name }}:ci ${{ matrix.context }}
+
+      - name: Scan image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: shieldvpn-${{ matrix.name }}:ci
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      # Reported for visibility, does not block the build.
+      - name: Report HIGH findings
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: shieldvpn-${{ matrix.name }}:ci
+          format: table
+          severity: HIGH
+          ignore-unfixed: true
+          exit-code: "0"

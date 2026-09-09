@@ -82,26 +82,70 @@ This document describes the updated architecture for Shield VPN, which consists 
     *   For physical devices, expose backend via ngrok or local network IP.
 
 5.  **WireGuard Demo Server Configuration (Testing):**
-    The backend automatically seeds a WG demo server if one doesn't exist upon startup (`wg-demo-1` in Frankfurt).
-    Use this server on the Mobile app to test the local VPN tunnel handshake.
+    The demo node is no longer created automatically — startup used to delete and
+    recreate it on every boot, discarding any edits made through the admin
+    dashboard. Seed it explicitly, once:
+    ```bash
+    docker compose exec backend python -m backend.seed_demo
+    ```
+    Override the target with `DEMO_WG_ENDPOINT` / `DEMO_WG_PUBLIC_KEY`.
+
+    > **Known limitation:** the client generates its own WireGuard keypair but has
+    > no way to register the public half with the server, and every client
+    > hardcodes the tunnel address `10.0.0.2/32`. Peer provisioning is Step 4 of
+    > [ROADMAP.md](ROADMAP.md); until it lands, tunnels will not establish against
+    > a correctly configured node.
 
 ## D) Environment Setup
 
-Create a `.env` file in the `/backend` directory:
+All configuration lives in a single `.env` file at the **repository root** (not
+in `/backend`). It is gitignored and never committed.
 
-```env
-DATABASE_URL=postgresql://postgres:postgres@db:5432/shieldvpn
-# Fallback to SQLite if not using Docker:
-# DATABASE_URL=sqlite:///./shieldvpn.db
-
-JWT_SECRET_KEY=super-secret-production-key-here
-SEED_ADMIN_EMAIL=admin@shieldvpn.local
-SEED_ADMIN_PASSWORD=secure_initial_password_123
+```bash
+cp .env.example .env
 ```
 
-*Admin credentials are NOT hardcoded in source. They are provisioned only on first boot via these env variables.*
+Then fill in the required values. Generate a JWT secret with:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+`backend/config.py` validates configuration at import time. When `APP_ENV=production`
+the application **refuses to start** if any of the following is true:
+
+*   `JWT_SECRET_KEY` is unset, shorter than 32 characters, or matches a known
+    placeholder that has previously appeared in this repository.
+*   `DATABASE_URL` points at SQLite.
+*   `CORS_ORIGINS` is empty.
+
+In development, an ephemeral JWT secret is generated per process if none is set
+(tokens will not survive a restart). There is no hardcoded fallback secret.
+
+Interactive API docs (`/docs`, `/redoc`, `/openapi.json`) are automatically
+disabled when `APP_ENV=production`.
+
+*Admin credentials are NOT hardcoded in source. They are provisioned once, on
+first boot, from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`.*
+
+> **Note on existing deployments:** Postgres only applies `POSTGRES_PASSWORD` when
+> initialising an empty data directory. If you are rotating the password against an
+> existing volume, change it in the database as well:
+> ```bash
+> docker compose exec db psql -U vpn_admin -d shieldvpn -c "ALTER USER vpn_admin WITH PASSWORD 'new-password';"
+> ```
 
 ## E) Testing Instructions
+
+**Backend test suite** (80 tests). CI runs these on every push; locally:
+
+```bash
+pip install -r backend/requirements-dev.txt
+ruff check backend/
+pytest
+```
+
+### Manual test flows
 
 1.  **Testing Guest Mode:**
     *   Open App -> Tap "Continue as Free User".
@@ -129,3 +173,69 @@ The current repository uses Android/Jetpack Compose, but the architecture strict
     1.  Use `provider` or `riverpod` for State Management (analogous to Kotlin ViewModels).
     2.  Use `sqflite` for caching server lists (analogous to Room).
     3.  WireGuard integration in Flutter will require Platform Channels (`MethodChannel`) to interact with native iOS `NetworkExtension` and Android `VpnService` (which is already implemented natively in this repo in `WireGuardVpnService.kt`, ready to be invoked by Flutter).
+
+## G) Database Migrations
+
+The schema is owned by Alembic (`backend/migrations`), not by
+`Base.metadata.create_all()`. The container entrypoint runs `alembic upgrade head`
+before starting the API, so a normal `docker compose up` applies anything pending.
+
+```bash
+# Inspect current revision
+docker compose exec backend alembic -c backend/alembic.ini current
+
+# Create a new migration after changing backend/models.py
+docker compose exec backend alembic -c backend/alembic.ini revision --autogenerate -m "describe change"
+
+# Roll back one revision
+docker compose exec backend alembic -c backend/alembic.ini downgrade -1
+```
+
+> **Upgrading a database created before Alembic was introduced:** its tables
+> already exist but it has no version table, so the initial migration would fail.
+> Mark it as already at the baseline first, once:
+> ```bash
+> docker compose exec backend alembic -c backend/alembic.ini stamp 0001
+> ```
+
+## H) Backoffice API
+
+All routes require an admin bearer token from `POST /admin/auth/login`.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/admin/stats` | Headline counts for the dashboard |
+| `GET` | `/admin/users` | List users — `limit`, `offset`, `search` |
+| `GET` | `/admin/users/{id}` | Single user |
+| `PATCH` | `/admin/users/{id}` | Set `is_admin` / `is_active` / `is_premium` |
+| `DELETE` | `/admin/users/{id}` | Delete a user |
+| `POST` | `/admin/users/{id}/subscription` | Grant or extend premium |
+| `DELETE` | `/admin/users/{id}/subscription` | Revoke premium |
+| `GET` | `/admin/servers` | List servers — `limit`, `offset` |
+| `GET` | `/admin/servers/{id}` | Single server |
+| `POST` | `/admin/servers` | Add a node (409 if the id exists) |
+| `PUT` | `/admin/servers/{id}` | Partial update |
+| `DELETE` | `/admin/servers/{id}` | Remove a node |
+
+Guards worth knowing about: the last active admin cannot be demoted,
+deactivated or deleted, and no admin can delete their own account. Renewing a
+subscription extends from the existing expiry rather than truncating it; pass
+`"extend": false` to replace the window instead.
+
+## I) CI and the review agent
+
+`.github/workflows/ci.yml` runs on every push and pull request with no setup:
+backend lint and tests, dashboard typecheck/build/audit, a gitleaks secret scan,
+and a Trivy scan of both container images.
+
+`.github/workflows/claude-review.yml` reviews each pull request against
+`ROADMAP.md`. It needs two things, and **skips itself cleanly if they are absent**
+rather than failing every PR:
+
+1. **Install the Claude GitHub App** on this repository — <https://github.com/apps/claude>.
+   Without it the action returns `401 Claude Code is not installed on this repository`.
+2. **Add `ANTHROPIC_API_KEY`** under Settings → Secrets and variables → Actions.
+
+To make CI binding, mark the `Backend`, `Dashboard`, `Secret scan` and
+`Container images` checks as required under Settings → Branches → branch
+protection for `main`.

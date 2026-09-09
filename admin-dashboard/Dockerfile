@@ -3,11 +3,12 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package.json
-COPY package.json ./
+# Copy manifests first so the dependency layer caches across source changes.
+COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm install
+# `npm ci` installs exactly what the lockfile pins, unlike `npm install` which
+# can silently resolve different transitive versions on every build.
+RUN npm ci
 
 # Copy source code
 COPY . .
