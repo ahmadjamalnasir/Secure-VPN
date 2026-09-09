@@ -17,12 +17,30 @@ jobs:
       contents: read
       pull-requests: write
       id-token: write
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
+      # Reviewing needs two things that live outside this repository's files:
+      # the API key, and the Claude GitHub App installed on the repo. Without
+      # the key there is nothing to check, so skip rather than fail every PR
+      # red. See README section I for setup.
+      - name: Check review is configured
+        id: cfg
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ANTHROPIC_API_KEY is not set - skipping Claude review."
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.cfg.outputs.ready == 'true'
         with:
           fetch-depth: 1
 
       - uses: anthropics/claude-code-action@v1
+        if: steps.cfg.outputs.ready == 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
@@ -50,8 +68,9 @@ jobs:
             2. Does it actually run. Two container images in this repo could
                not build at all while appearing healthy, because a stale image
                was running and nothing verified the source. Be sceptical of
-               changes to Dockerfiles, imports, entrypoints and dependency
-               pins. Ask whether CI genuinely exercises the changed path.
+               changes to Dockerfiles, imports, entrypoints, dependency pins
+               and pinned action versions. Ask whether CI genuinely exercises
+               the changed path.
 
             3. Correctness bugs with a concrete failure scenario. Describe the
                inputs or state that produce the wrong result. Do not report

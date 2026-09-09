@@ -221,3 +221,21 @@ Guards worth knowing about: the last active admin cannot be demoted,
 deactivated or deleted, and no admin can delete their own account. Renewing a
 subscription extends from the existing expiry rather than truncating it; pass
 `"extend": false` to replace the window instead.
+
+## I) CI and the review agent
+
+`.github/workflows/ci.yml` runs on every push and pull request with no setup:
+backend lint and tests, dashboard typecheck/build/audit, a gitleaks secret scan,
+and a Trivy scan of both container images.
+
+`.github/workflows/claude-review.yml` reviews each pull request against
+`ROADMAP.md`. It needs two things, and **skips itself cleanly if they are absent**
+rather than failing every PR:
+
+1. **Install the Claude GitHub App** on this repository — <https://github.com/apps/claude>.
+   Without it the action returns `401 Claude Code is not installed on this repository`.
+2. **Add `ANTHROPIC_API_KEY`** under Settings → Secrets and variables → Actions.
+
+To make CI binding, mark the `Backend`, `Dashboard`, `Secret scan` and
+`Container images` checks as required under Settings → Branches → branch
+protection for `main`.

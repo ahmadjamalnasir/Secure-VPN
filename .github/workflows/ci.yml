@@ -101,7 +101,7 @@ jobs:
         run: docker build -t shieldvpn-${{ matrix.name }}:ci ${{ matrix.context }}
 
       - name: Scan image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: shieldvpn-${{ matrix.name }}:ci
           format: table
@@ -112,7 +112,7 @@ jobs:
       # Reported for visibility, does not block the build.
       - name: Report HIGH findings
         if: always()
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: shieldvpn-${{ matrix.name }}:ci
           format: table
