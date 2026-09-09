@@ -14,10 +14,12 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 # must live in a package directory named `backend` on the Python path.
 COPY . /app/backend/
 
+RUN chmod +x /app/backend/entrypoint.sh
+
 # Drop privileges: nothing in this image needs to run as root.
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/backend/entrypoint.sh"]

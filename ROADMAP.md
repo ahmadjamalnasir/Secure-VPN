@@ -58,7 +58,31 @@ foundation the review agent sits on.
 - [x] Claude Code review action on PRs, checking the diff against this roadmap
 - [ ] Add `ANTHROPIC_API_KEY` to repository secrets *(needs owner)*
 
-## Step 3 — Backend: the missing core feature `[ ]`
+## Step 3 — Backoffice management APIs `[x]`
+
+*Verified: 80 tests pass (up from 31), ruff clean, migrations apply, downgrade
+and re-apply cleanly against Postgres, and existing rows are backfilled rather
+than nulled.*
+
+Admin server, user and subscription management, which is what the backoffice
+needs to exist before its UI can be built in Step 6.
+
+- [x] Alembic migrations replacing `create_all()`, applied by the container
+      entrypoint on every start
+- [x] Split `main.py` into routers/schemas/security (behaviour-neutral; proven
+      by the Step 2 tests passing unmodified)
+- [x] Full server CRUD: list (paginated), get, create (409 on duplicate),
+      partial update, delete
+- [x] User management: list with pagination and email search, get, partial
+      update, delete
+- [x] Subscription grant/extend/revoke, with renewal extending from the current
+      expiry rather than truncating it
+- [x] `GET /admin/stats` for the dashboard landing page
+- [x] Lockout guards: cannot demote, deactivate or delete the last active
+      admin, and cannot delete your own account
+- [x] Deactivated admins can no longer log in
+
+## Step 4 — Peer provisioning: the missing core feature `[ ]`
 
 WireGuard is mutually key-authenticated. The client generates a keypair and
 never sends the public half anywhere, and no endpoint exists to receive it — so
@@ -70,27 +94,29 @@ work.
       tunnel IP from a pool, return the full peer config
 - [ ] `DELETE /vpn/peers/{id}` — revoke on disconnect/logout
 - [ ] Peer table + per-user peer limits + IP allocation that survives restarts
-- [ ] A control path that actually applies peers to the WireGuard node
-      *(design depends on who owns the nodes — see Open Questions)*
-- [ ] Require auth on `/servers` (currently public, leaks node keys/endpoints)
-- [ ] Alembic migrations (`create_all()` will not apply schema changes)
+- [ ] A node agent that pulls its peer list from the backend and reconciles
+      local `wg0` — no inbound ports on the VPN node, self-heals after reboot
+- [ ] Split the server catalogue: keep `GET /servers` public for guest browsing
+      but strip `wg_public_key`/`wg_endpoint`, and move the credentials behind an
+      authenticated `GET /servers/{id}/config`. Deferred from Step 3 so the
+      mobile contract changes exactly once, here
 - [ ] Rate limit `/auth/login`, `/auth/signup`, `/admin/auth/login`
 - [ ] Email validation (`EmailStr`) and a password policy — signup currently
       accepts any string
 - [ ] Structured logging + a global exception handler
 
-## Step 4 — Android client hardening `[ ]`
+## Step 5 — Android client hardening `[ ]`
 
 - [ ] Move `BASE_URL` out of source into `BuildConfig` per build type
       (a personal ngrok tunnel is currently compiled into the APK)
 - [ ] Strip `HttpLoggingInterceptor.Level.BODY` from release builds
       (leaks bearer tokens to logcat)
 - [ ] Remove `android:usesCleartextTraffic="true"`
-- [ ] Call the peer registration API from Step 3; drop the hardcoded tunnel IP
+- [ ] Call the peer registration API from Step 4; drop the hardcoded tunnel IP
 - [ ] Persist the auth token in EncryptedSharedPreferences (currently in-memory)
 - [ ] Release signing config + Play Store VPN policy compliance review
 
-## Step 5 — Admin dashboard: real integration `[ ]`
+## Step 6 — Admin dashboard: real integration `[ ]`
 
 Currently a scaffold rendering one hardcoded row; the axios call is commented out.
 Its dependency tree also did not resolve at all until Step 2 pinned TypeScript
@@ -106,12 +132,13 @@ back to 4.x, because react-scripts 5.0.1 rejects TS5 as a peer.
 - [ ] API base URL via build-time env, nginx proxy for `/api`
 - [ ] Error and loading states
 
-## Step 6 — Deployment `[ ]`
+## Step 7 — Deployment `[ ]`
 
 - [ ] TLS termination + reverse proxy in front of the API
 - [ ] Real domain, retire ngrok
 - [ ] Resource limits, log aggregation, database backups
 - [ ] Nightly scheduled agent run against the deployed stack
+- [ ] Name the managed cloud provider and add the deploy job to CI
 
 ---
 

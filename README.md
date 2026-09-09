@@ -92,7 +92,7 @@ This document describes the updated architecture for Shield VPN, which consists 
 
     > **Known limitation:** the client generates its own WireGuard keypair but has
     > no way to register the public half with the server, and every client
-    > hardcodes the tunnel address `10.0.0.2/32`. Peer provisioning is Step 3 of
+    > hardcodes the tunnel address `10.0.0.2/32`. Peer provisioning is Step 4 of
     > [ROADMAP.md](ROADMAP.md); until it lands, tunnels will not establish against
     > a correctly configured node.
 
@@ -137,6 +137,16 @@ first boot, from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`.*
 
 ## E) Testing Instructions
 
+**Backend test suite** (80 tests). CI runs these on every push; locally:
+
+```bash
+pip install -r backend/requirements-dev.txt
+ruff check backend/
+pytest
+```
+
+### Manual test flows
+
 1.  **Testing Guest Mode:**
     *   Open App -> Tap "Continue as Free User".
     *   Observe access to Free servers. Click a Premium server and observe the paywall restriction.
@@ -163,3 +173,51 @@ The current repository uses Android/Jetpack Compose, but the architecture strict
     1.  Use `provider` or `riverpod` for State Management (analogous to Kotlin ViewModels).
     2.  Use `sqflite` for caching server lists (analogous to Room).
     3.  WireGuard integration in Flutter will require Platform Channels (`MethodChannel`) to interact with native iOS `NetworkExtension` and Android `VpnService` (which is already implemented natively in this repo in `WireGuardVpnService.kt`, ready to be invoked by Flutter).
+
+## G) Database Migrations
+
+The schema is owned by Alembic (`backend/migrations`), not by
+`Base.metadata.create_all()`. The container entrypoint runs `alembic upgrade head`
+before starting the API, so a normal `docker compose up` applies anything pending.
+
+```bash
+# Inspect current revision
+docker compose exec backend alembic -c backend/alembic.ini current
+
+# Create a new migration after changing backend/models.py
+docker compose exec backend alembic -c backend/alembic.ini revision --autogenerate -m "describe change"
+
+# Roll back one revision
+docker compose exec backend alembic -c backend/alembic.ini downgrade -1
+```
+
+> **Upgrading a database created before Alembic was introduced:** its tables
+> already exist but it has no version table, so the initial migration would fail.
+> Mark it as already at the baseline first, once:
+> ```bash
+> docker compose exec backend alembic -c backend/alembic.ini stamp 0001
+> ```
+
+## H) Backoffice API
+
+All routes require an admin bearer token from `POST /admin/auth/login`.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/admin/stats` | Headline counts for the dashboard |
+| `GET` | `/admin/users` | List users — `limit`, `offset`, `search` |
+| `GET` | `/admin/users/{id}` | Single user |
+| `PATCH` | `/admin/users/{id}` | Set `is_admin` / `is_active` / `is_premium` |
+| `DELETE` | `/admin/users/{id}` | Delete a user |
+| `POST` | `/admin/users/{id}/subscription` | Grant or extend premium |
+| `DELETE` | `/admin/users/{id}/subscription` | Revoke premium |
+| `GET` | `/admin/servers` | List servers — `limit`, `offset` |
+| `GET` | `/admin/servers/{id}` | Single server |
+| `POST` | `/admin/servers` | Add a node (409 if the id exists) |
+| `PUT` | `/admin/servers/{id}` | Partial update |
+| `DELETE` | `/admin/servers/{id}` | Remove a node |
+
+Guards worth knowing about: the last active admin cannot be demoted,
+deactivated or deleted, and no admin can delete their own account. Renewing a
+subscription extends from the existing expiry rather than truncating it; pass
+`"extend": false` to replace the window instead.

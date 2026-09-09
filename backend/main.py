@@ -8,12 +8,12 @@ from sqlalchemy.orm import Session
 
 from backend import database, models
 from backend.config import settings
-from backend.database import engine, get_db
+from backend.database import get_db
 from backend.routers import admin, auth, servers
 from backend.security import get_password_hash
 
-# Create tables
-models.Base.metadata.create_all(bind=engine)
+# The schema is owned by Alembic (backend/migrations); see entrypoint.sh.
+# Tests create tables directly from the metadata in their own fixture.
 
 app = FastAPI(
     title="Shield VPN API",

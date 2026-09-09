@@ -35,7 +35,9 @@ def test_admin_can_list_users(client, admin_token):
         "Authorization": f"Bearer {admin_token}",
     })
     assert resp.status_code == 200
-    assert any(u["email"] == "admin@test.local" for u in resp.json())
+    body = resp.json()
+    assert body["total"] >= 1
+    assert any(u["email"] == "admin@test.local" for u in body["items"])
 
 
 def test_admin_can_add_a_server(client, admin_token):
@@ -49,7 +51,7 @@ def test_admin_can_add_a_server(client, admin_token):
     resp = client.post("/admin/servers", json=payload, headers={
         "Authorization": f"Bearer {admin_token}",
     })
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     assert resp.json()["id"] == "test-1"
 
     listed = client.get("/servers")
