@@ -16,3 +16,29 @@
 local.properties
 .env
 debug.keystore
+
+# ---- Secrets & environment ----
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.p12
+debug.keystore.base64
+
+# ---- Build outputs ----
+.build-outputs/
+*.apk
+*.aab
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.db
+.pytest_cache/
+
+# ---- Node ----
+node_modules/
+admin-dashboard/build/

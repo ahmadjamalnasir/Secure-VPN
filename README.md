@@ -82,24 +82,58 @@ This document describes the updated architecture for Shield VPN, which consists 
     *   For physical devices, expose backend via ngrok or local network IP.
 
 5.  **WireGuard Demo Server Configuration (Testing):**
-    The backend automatically seeds a WG demo server if one doesn't exist upon startup (`wg-demo-1` in Frankfurt).
-    Use this server on the Mobile app to test the local VPN tunnel handshake.
+    The demo node is no longer created automatically — startup used to delete and
+    recreate it on every boot, discarding any edits made through the admin
+    dashboard. Seed it explicitly, once:
+    ```bash
+    docker compose exec backend python -m backend.seed_demo
+    ```
+    Override the target with `DEMO_WG_ENDPOINT` / `DEMO_WG_PUBLIC_KEY`.
+
+    > **Known limitation:** the client generates its own WireGuard keypair but has
+    > no way to register the public half with the server, and every client
+    > hardcodes the tunnel address `10.0.0.2/32`. Peer provisioning is Step 3 of
+    > [ROADMAP.md](ROADMAP.md); until it lands, tunnels will not establish against
+    > a correctly configured node.
 
 ## D) Environment Setup
 
-Create a `.env` file in the `/backend` directory:
+All configuration lives in a single `.env` file at the **repository root** (not
+in `/backend`). It is gitignored and never committed.
 
-```env
-DATABASE_URL=postgresql://postgres:postgres@db:5432/shieldvpn
-# Fallback to SQLite if not using Docker:
-# DATABASE_URL=sqlite:///./shieldvpn.db
-
-JWT_SECRET_KEY=super-secret-production-key-here
-SEED_ADMIN_EMAIL=admin@shieldvpn.local
-SEED_ADMIN_PASSWORD=secure_initial_password_123
+```bash
+cp .env.example .env
 ```
 
-*Admin credentials are NOT hardcoded in source. They are provisioned only on first boot via these env variables.*
+Then fill in the required values. Generate a JWT secret with:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+`backend/config.py` validates configuration at import time. When `APP_ENV=production`
+the application **refuses to start** if any of the following is true:
+
+*   `JWT_SECRET_KEY` is unset, shorter than 32 characters, or matches a known
+    placeholder that has previously appeared in this repository.
+*   `DATABASE_URL` points at SQLite.
+*   `CORS_ORIGINS` is empty.
+
+In development, an ephemeral JWT secret is generated per process if none is set
+(tokens will not survive a restart). There is no hardcoded fallback secret.
+
+Interactive API docs (`/docs`, `/redoc`, `/openapi.json`) are automatically
+disabled when `APP_ENV=production`.
+
+*Admin credentials are NOT hardcoded in source. They are provisioned once, on
+first boot, from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`.*
+
+> **Note on existing deployments:** Postgres only applies `POSTGRES_PASSWORD` when
+> initialising an empty data directory. If you are rotating the password against an
+> existing volume, change it in the database as well:
+> ```bash
+> docker compose exec db psql -U vpn_admin -d shieldvpn -c "ALTER USER vpn_admin WITH PASSWORD 'new-password';"
+> ```
 
 ## E) Testing Instructions
 

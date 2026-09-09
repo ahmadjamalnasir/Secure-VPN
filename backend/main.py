@@ -1,16 +1,18 @@
-import os
 import uuid
 from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 
 from backend import models, database
+from backend.config import settings
 from backend.database import engine, get_db
 
 # Create tables
@@ -19,13 +21,26 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="Shield VPN API",
     description="Backend API for Shield VPN Mobile and Admin Dashboard",
-    version="1.0.0"
+    version="1.0.0",
+    # Interactive docs expose the full API surface; keep them off in production.
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
 )
 
+if settings.cors_origin_list:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
 # ---- Auth Setup ----
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-256-bit-secret-dev-key")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
+SECRET_KEY = settings.jwt_secret_key
+ALGORITHM = settings.jwt_algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -105,52 +120,46 @@ class TokenResponse(BaseModel):
 # ---- Startup Event ----
 @app.on_event("startup")
 def setup_default_data():
+    """Idempotent first-boot provisioning.
+
+    Deliberately non-destructive: nothing here overwrites or deletes a row that
+    an operator may have edited through the admin dashboard.
+    """
     db = database.SessionLocal()
-    # 1. Seed Admin from Env
-    admin_email = os.getenv("SEED_ADMIN_EMAIL")
-    admin_password = os.getenv("SEED_ADMIN_PASSWORD")
-    if admin_email and admin_password:
-        existing_admin = db.query(models.DbUser).filter(models.DbUser.email == admin_email).first()
-        if not existing_admin:
-            new_admin = models.DbUser(
-                id=str(uuid.uuid4()),
-                email=admin_email,
-                hashed_password=get_password_hash(admin_password),
-                is_premium=True,
-                is_admin=True
-            )
-            db.add(new_admin)
-            
-    # 2. Add or update WireGuard demo server
-    wg_id = "wg-demo-1"
-    existing_wg = db.query(models.DbServer).filter(models.DbServer.id == wg_id).first()
-    if existing_wg:
-        db.delete(existing_wg)
-        db.commit()
-    
-    wg_server = models.DbServer(
-        id=wg_id,
-        country="United States",
-        city="Demo",
-        ip_address="us1-wg.ssl-tun.xyz",
-        is_premium=False,
-        status="online",
-        load_percent=0,
-        wg_public_key="z1d6XOUyV2R0sEz211W5JpbFfsDc9wi7VCwvSgon+CA=",
-        wg_endpoint="us1-wg.ssl-tun.xyz:2600",
-        dns="8.8.8.8",
-        keepalive=25
-    )
-    db.add(wg_server)
-        
-    db.commit()
-    db.close()
+    try:
+        # Seed the initial admin, once, from the environment.
+        admin_email = settings.seed_admin_email
+        admin_password = settings.seed_admin_password
+        if admin_email and admin_password:
+            existing_admin = db.query(models.DbUser).filter(
+                models.DbUser.email == admin_email
+            ).first()
+            if not existing_admin:
+                db.add(models.DbUser(
+                    id=str(uuid.uuid4()),
+                    email=admin_email,
+                    hashed_password=get_password_hash(admin_password),
+                    is_premium=True,
+                    is_admin=True,
+                ))
+                db.commit()
+    finally:
+        db.close()
 
 
 # ---- Endpoints: Public / Mobile ----
 @app.get("/")
 def read_root():
     return {"status": "ok", "message": "Shield VPN API is running"}
+
+@app.get("/health")
+def health(db: Session = Depends(get_db)):
+    """Liveness + database readiness probe used by Docker and load balancers."""
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        raise HTTPException(status_code=503, detail="database unavailable")
+    return {"status": "healthy"}
 
 @app.post("/auth/signup")
 def signup(request: LoginRequest, db: Session = Depends(get_db)):
