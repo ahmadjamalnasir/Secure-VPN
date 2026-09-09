@@ -1,17 +1,16 @@
 import uuid
 from datetime import datetime, timedelta
-from typing import List, Optional
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
-from jose import JWTError, jwt
 
-from backend import models, database
+from backend import database, models
 from backend.config import settings
 from backend.database import engine, get_db
 
@@ -51,7 +50,7 @@ def verify_password(plain_password, hashed_password):
 def get_password_hash(password):
     return pwd_context.hash(password)
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta if expires_delta else timedelta(minutes=15))
     to_encode.update({"exp": expire})
@@ -69,7 +68,7 @@ def get_current_user_from_token(token: str = Depends(oauth2_scheme), db: Session
         if email is None:
             raise credentials_exception
     except JWTError:
-        raise credentials_exception
+        raise credentials_exception from None
     user = db.query(models.DbUser).filter(models.DbUser.email == email).first()
     if user is None:
         raise credentials_exception
@@ -89,23 +88,21 @@ class Server(BaseModel):
     is_premium: bool
     status: str
     load_percent: int
-    wg_public_key: Optional[str] = None
-    wg_endpoint: Optional[str] = None
-    dns: Optional[str] = "8.8.8.8"
-    keepalive: Optional[int] = 25
-    
-    class Config:
-        from_attributes = True
+    wg_public_key: str | None = None
+    wg_endpoint: str | None = None
+    dns: str | None = "8.8.8.8"
+    keepalive: int | None = 25
+
+    model_config = ConfigDict(from_attributes=True)
 
 class User(BaseModel):
     id: str
     email: str
     is_premium: bool
     is_admin: bool
-    subscription_expiry: Optional[datetime]
-    
-    class Config:
-        from_attributes = True
+    subscription_expiry: datetime | None
+
+    model_config = ConfigDict(from_attributes=True)
 
 class LoginRequest(BaseModel):
     email: str
@@ -157,8 +154,8 @@ def health(db: Session = Depends(get_db)):
     """Liveness + database readiness probe used by Docker and load balancers."""
     try:
         db.execute(text("SELECT 1"))
-    except Exception:
-        raise HTTPException(status_code=503, detail="database unavailable")
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="database unavailable") from exc
     return {"status": "healthy"}
 
 @app.post("/auth/signup")
@@ -177,8 +174,15 @@ def signup(request: LoginRequest, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     
-    token = create_access_token({"sub": new_user.email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    return TokenResponse(access_token=token, token_type="bearer", is_premium=new_user.is_premium, is_admin=False)
+    token = create_access_token(
+        {"sub": new_user.email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        is_premium=new_user.is_premium,
+        is_admin=False,
+    )
 
 @app.post("/auth/login", response_model=TokenResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
@@ -187,10 +191,17 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    token = create_access_token({"sub": user.email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    return TokenResponse(access_token=token, token_type="bearer", is_premium=user.is_premium, is_admin=user.is_admin)
+    token = create_access_token(
+        {"sub": user.email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        is_premium=user.is_premium,
+        is_admin=user.is_admin,
+    )
 
-@app.get("/servers", response_model=List[Server])
+@app.get("/servers", response_model=list[Server])
 def list_servers(db: Session = Depends(get_db)):
     """Returns the list of available VPN servers."""
     return db.query(models.DbServer).all()
@@ -213,20 +224,41 @@ def get_current_user_info(current_user = Depends(get_current_user_from_token)):
 @app.post("/admin/auth/login", response_model=TokenResponse)
 def admin_login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Authenticates admin users (e.g. from React dashboard)."""
-    user = db.query(models.DbUser).filter(models.DbUser.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password) or not user.is_admin:
-        raise HTTPException(status_code=401, detail="Invalid credentials or insufficient permissions")
-    
-    token = create_access_token({"sub": user.email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    return TokenResponse(access_token=token, token_type="bearer", is_premium=user.is_premium, is_admin=True)
+    user = db.query(models.DbUser).filter(
+        models.DbUser.email == form_data.username
+    ).first()
+    if (not user
+            or not verify_password(form_data.password, user.hashed_password)
+            or not user.is_admin):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials or insufficient permissions",
+        )
 
-@app.get("/admin/users", response_model=List[User])
-def admin_list_users(current_admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    token = create_access_token(
+        {"sub": user.email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        is_premium=user.is_premium,
+        is_admin=True,
+    )
+
+@app.get("/admin/users", response_model=list[User])
+def admin_list_users(
+    current_admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
     return db.query(models.DbUser).all()
 
 @app.post("/admin/servers", response_model=Server)
-def admin_add_server(server: Server, current_admin = Depends(get_current_admin), db: Session = Depends(get_db)):
-    db_server = models.DbServer(**server.dict())
+def admin_add_server(
+    server: Server,
+    current_admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    db_server = models.DbServer(**server.model_dump())
     db.add(db_server)
     db.commit()
     db.refresh(db_server)

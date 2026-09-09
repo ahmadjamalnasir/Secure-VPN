@@ -38,19 +38,25 @@ signed JWTs with a publicly-known key.
 - [x] Pin `bcrypt<4.1` (passlib 1.7.4 breaks against newer bcrypt)
 - [ ] Rotate the demo WireGuard keypair and retire the ngrok tunnel *(needs owner)*
 
-## Step 2 — Automated quality gate (the "QA agent") `[ ]`
+## Step 2 — Automated quality gate (the "QA agent") `[x]`
+
+*Verified locally: ruff clean, 31 tests pass, dashboard `npm ci` + typecheck +
+build + audit pass, gitleaks reports no leaks on a CI-equivalent checkout, and
+both container images build.*
 
 Everything below runs on every push with zero human involvement. This is the
 foundation the review agent sits on.
 
-- [ ] `pytest` + `httpx` test suite for the backend (auth, authz, config
-      validation, server CRUD) — currently **zero tests exist**
-- [ ] `ruff` lint + format check
-- [ ] `gitleaks` secret scan (would have caught every finding in Step 1)
-- [ ] `npm run build` + `tsc --noEmit` for the dashboard
-- [ ] Trivy scan of both container images
-- [ ] GitHub Actions workflow wiring the above to PRs, required to merge
-- [ ] Claude Code review action on PRs, checking the diff against this roadmap
+- [x] `pytest` + `httpx` test suite for the backend (auth, authz, config
+      validation, server CRUD) — 31 tests, up from zero
+- [x] `ruff` lint + format check
+- [x] `gitleaks` secret scan (would have caught every finding in Step 1)
+- [x] `npm run build` + `tsc --noEmit` for the dashboard
+- [x] Trivy scan of both container images
+- [x] GitHub Actions workflow wiring the above to PRs
+- [ ] Mark the CI checks as required to merge *(needs owner: repo settings)*
+- [x] Claude Code review action on PRs, checking the diff against this roadmap
+- [ ] Add `ANTHROPIC_API_KEY` to repository secrets *(needs owner)*
 
 ## Step 3 — Backend: the missing core feature `[ ]`
 
@@ -87,7 +93,12 @@ work.
 ## Step 5 — Admin dashboard: real integration `[ ]`
 
 Currently a scaffold rendering one hardcoded row; the axios call is commented out.
+Its dependency tree also did not resolve at all until Step 2 pinned TypeScript
+back to 4.x, because react-scripts 5.0.1 rejects TS5 as a peer.
 
+- [ ] Migrate off Create React App to Vite. CRA is deprecated and carries 14
+      high-severity build-time advisories; once migrated, tighten the CI audit
+      gate from `critical` to `high` and drop the TS4 pin
 - [ ] Login screen against `/admin/auth/login`
 - [ ] Auth context + token persistence + protected routes (`react-router-dom`
       is installed but unused)

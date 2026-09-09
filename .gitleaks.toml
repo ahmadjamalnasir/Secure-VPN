@@ -1,0 +1,35 @@
+# gitleaks configuration for Shield VPN.
+#
+# CI scans the working tree (--no-git), not history. Secrets committed before
+# the Step 1 rotation are known, burned and deliberately left in history rather
+# than rewritten; see ROADMAP.md. This config exists so the scan stays useful:
+# it must fail on genuinely new secrets and not on documented placeholders.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Placeholder values that config validation explicitly rejects"
+regexTarget = "line"
+paths = ['''backend/config\.py''']
+regexes = [
+  '''your-256-bit-secret-dev-key''',
+  '''supersecretkey_change_in_production''',
+  '''super-secret-production-key-here''',
+]
+
+[[allowlists]]
+description = "Regression test that a token forged with the old key is rejected"
+paths = ['''backend/tests/.*\.py''']
+
+[[allowlists]]
+description = "WireGuard *public* keys are not secrets; they are published by design"
+paths = ['''backend/seed_demo\.py''']
+regexes = ['''z1d6XOUyV2R0sEz211W5JpbFfsDc9wi7VCwvSgon\+CA=''']
+
+[[allowlists]]
+description = "Templates and lockfiles carry no live credentials"
+paths = [
+  '''\.env\.example''',
+  '''package-lock\.json''',
+]

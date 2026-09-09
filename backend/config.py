@@ -7,7 +7,7 @@ startup instead of silently falling back to insecure defaults.
 import secrets
 import warnings
 from functools import lru_cache
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -63,14 +63,12 @@ class Settings(BaseSettings):
         return self.app_env == "production"
 
     @property
-    def cors_origin_list(self) -> List[str]:
+    def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @field_validator("database_url")
     @classmethod
-    def _reject_sqlite_in_prod(cls, v: str, info) -> str:
-        # Cross-field validation happens in _validate_production below; here we
-        # only normalise.
+    def _normalise_database_url(cls, v: str) -> str:
         return v.strip()
 
     @model_validator(mode="after")
