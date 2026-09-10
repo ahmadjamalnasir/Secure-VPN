@@ -53,7 +53,7 @@ services:
       - "3000:80"
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

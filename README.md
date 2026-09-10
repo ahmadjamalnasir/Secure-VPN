@@ -68,13 +68,20 @@ This document describes the updated architecture for Shield VPN, which consists 
     ```
     This spins up PostgreSQL and FastAPI.
 
-3.  **Admin Dashboard Startup:**
-    *(If running backoffice locally)*
+3.  **Admin Dashboard:**
+    Brought up by `docker compose up` alongside the rest, at
+    <http://localhost:3000>. Sign in with `SEED_ADMIN_EMAIL` /
+    `SEED_ADMIN_PASSWORD` from your `.env`.
+
+    nginx in that container proxies `/api` to the backend, so the browser only
+    ever talks to port 3000 and no backend hostname is baked into the bundle.
+
+    To run it with hot reload instead:
     ```bash
-    cd admin-dashboard
-    npm install
-    npm start
+    cd admin-dashboard && npm install && npm run dev
     ```
+    The Vite dev server proxies `/api` to `http://localhost:8000`; override with
+    `VITE_API_TARGET`.
 
 4.  **Mobile App Connection Setup:**
     *   In `app/src/main/java/com/example/data/remote/ApiClient.kt`, ensure `BASE_URL` points to your backend.
@@ -92,7 +99,7 @@ This document describes the updated architecture for Shield VPN, which consists 
 
     > **Known limitation:** the client generates its own WireGuard keypair but has
     > no way to register the public half with the server, and every client
-    > hardcodes the tunnel address `10.0.0.2/32`. Peer provisioning is Step 4 of
+    > hardcodes the tunnel address `10.0.0.2/32`. Peer provisioning is Step 5 of
     > [ROADMAP.md](ROADMAP.md); until it lands, tunnels will not establish against
     > a correctly configured node.
 
