@@ -82,7 +82,32 @@ needs to exist before its UI can be built in Step 6.
       admin, and cannot delete your own account
 - [x] Deactivated admins can no longer log in
 
-## Step 4 — Peer provisioning: the missing core feature `[ ]`
+## Step 4 — Admin dashboard: real integration `[x]`
+
+*Verified in a browser against the running stack: login page renders, the
+servers table shows real rows from the API, the dashboard tiles show live
+counts, and clicking "Take offline" issued `PUT /api/admin/servers/nl-ams-1`
+→ 200 with the change persisted and the list refreshed.*
+
+Was a scaffold rendering one hardcoded row with the axios call commented out.
+Its dependency tree did not resolve at all until Step 2 pinned TypeScript back
+to 4.x, because react-scripts 5.0.1 rejects TS5 as a peer.
+
+- [x] Migrated off Create React App to Vite 8. Dropped the TS4 pin; npm
+      advisories went from 32 (14 high) to 2 (0 high, 0 critical), so the CI
+      audit gate is tightened from `critical` to `high`
+- [x] Login screen against `/admin/auth/login`
+- [x] Auth context, token persistence, and a route guard; any 401 drops the
+      session rather than leaving the UI half-authenticated
+- [x] Servers: list, create, partial update, take offline/bring online, delete
+- [x] Users: list with pagination and email search, enable/disable, delete,
+      grant/extend/revoke subscriptions
+- [x] Dashboard with live counts from `/admin/stats`
+- [x] nginx proxies `/api` to the backend, so the bundle embeds no hostname
+      and the browser never makes a cross-origin request
+- [x] Error and loading states on every view
+
+## Step 5 — Peer provisioning: the missing core feature `[ ]`
 
 WireGuard is mutually key-authenticated. The client generates a keypair and
 never sends the public half anywhere, and no endpoint exists to receive it — so
@@ -105,32 +130,16 @@ work.
       accepts any string
 - [ ] Structured logging + a global exception handler
 
-## Step 5 — Android client hardening `[ ]`
+## Step 6 — Android client hardening `[ ]`
 
 - [ ] Move `BASE_URL` out of source into `BuildConfig` per build type
       (a personal ngrok tunnel is currently compiled into the APK)
 - [ ] Strip `HttpLoggingInterceptor.Level.BODY` from release builds
       (leaks bearer tokens to logcat)
 - [ ] Remove `android:usesCleartextTraffic="true"`
-- [ ] Call the peer registration API from Step 4; drop the hardcoded tunnel IP
+- [ ] Call the peer registration API from Step 5; drop the hardcoded tunnel IP
 - [ ] Persist the auth token in EncryptedSharedPreferences (currently in-memory)
 - [ ] Release signing config + Play Store VPN policy compliance review
-
-## Step 6 — Admin dashboard: real integration `[ ]`
-
-Currently a scaffold rendering one hardcoded row; the axios call is commented out.
-Its dependency tree also did not resolve at all until Step 2 pinned TypeScript
-back to 4.x, because react-scripts 5.0.1 rejects TS5 as a peer.
-
-- [ ] Migrate off Create React App to Vite. CRA is deprecated and carries 14
-      high-severity build-time advisories; once migrated, tighten the CI audit
-      gate from `critical` to `high` and drop the TS4 pin
-- [ ] Login screen against `/admin/auth/login`
-- [ ] Auth context + token persistence + protected routes (`react-router-dom`
-      is installed but unused)
-- [ ] Real server and user management views
-- [ ] API base URL via build-time env, nginx proxy for `/api`
-- [ ] Error and loading states
 
 ## Step 7 — Deployment `[ ]`
 

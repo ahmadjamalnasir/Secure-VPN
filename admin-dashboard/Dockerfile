@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -10,20 +10,17 @@ COPY package.json package-lock.json ./
 # can silently resolve different transitive versions on every build.
 RUN npm ci
 
-# Copy source code
 COPY . .
 
-# Build the React application
+# Typechecks as part of `build`, so a type error fails the image.
 RUN npm run build
 
 # Serve stage
 FROM nginx:alpine
 
-# Copy built assets to Nginx
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Expose port
 EXPOSE 80
 
-# Start Nginx
 CMD ["nginx", "-g", "daemon off;"]

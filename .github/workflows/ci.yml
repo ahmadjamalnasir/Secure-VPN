@@ -45,7 +45,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "22"
           cache: npm
           cache-dependency-path: admin-dashboard/package-lock.json
 
@@ -58,12 +58,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      # react-scripts 5.0.1 (Create React App) is deprecated and drags in a
-      # large tree of build-time advisories. None are critical today, so the
-      # gate is set there. Tighten to `high` once the Vite migration in
-      # ROADMAP.md Step 5 lands.
+      # CRA carried 14 high-severity build-time advisories; the Vite migration
+      # cleared them, so this gate is now set at `high` rather than `critical`.
       - name: Audit dependencies
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=high
 
   secrets:
     name: Secret scan
